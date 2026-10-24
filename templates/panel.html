@@ -25,7 +25,7 @@
            padding: 6px; min-height: 22px; white-space: pre-wrap; word-break: break-word; }
   .pad { border: 1px solid #999; height: 240px; position: relative; overflow: hidden; }
   .dot { position: absolute; width: 12px; height: 12px; margin: -6px 0 0 -6px;
-         border-radius: 50%; }
+         border-radius: 50%; opacity: 1; transition: opacity 1.5s linear; }
   #empty { color: #555; }
 </style>
 </head>
@@ -109,6 +109,7 @@
     c.remove(); delete cards[d.id];
     numEl.textContent = Object.keys(cards).length;
     if (!Object.keys(cards).length) empty.style.display = "inline";
+    delete lastTouch[d.id];
   });
 
   socket.on("typing", function(d){
@@ -116,18 +117,36 @@
     c.querySelector(".typed").textContent = d.text;
   });
 
+    var lastTouch = {};   // id -> остання позиція пальця (у відсотках)
+
   socket.on("touch", function(d){
     var c = cards[d.id]; if (!c) return;
     var pad = c.querySelector(".pad");
+    var prev = lastTouch[d.id];
+    if (prev){
+      var dx = d.x - prev.x, dy = d.y - prev.y;
+      var dist = Math.sqrt(dx*dx + dy*dy);
+      if (dist < 15){                       // великий стрибок = новий штрих, не з'єднуємо
+        var steps = Math.floor(dist / 1.2);
+        for (var i = 1; i < steps; i++){
+          dropPanelDot(pad, prev.x + dx * i / steps, prev.y + dy * i / steps, d.color);
+        }
+      }
+    }
+    dropPanelDot(pad, d.x, d.y, d.color);
+    lastTouch[d.id] = { x: d.x, y: d.y };
+  });
+
+  function dropPanelDot(pad, x, y, color){
     var dot = document.createElement("div");
     dot.className = "dot";
-    dot.style.left = d.x + "%";
-    dot.style.top = d.y + "%";
-    dot.style.background = d.color;
-    dot.style.opacity = d.down ? "1" : "0.4";
+    dot.style.left = x + "%";
+    dot.style.top  = y + "%";
+    dot.style.background = color;
     pad.appendChild(dot);
+    requestAnimationFrame(function(){ dot.style.opacity = "0"; });
     setTimeout(function(){ dot.remove(); }, 1500);
-  });
+  }
 </script>
 </body>
 </html>

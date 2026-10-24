@@ -18,6 +18,13 @@ counter = {"n": 0}
 def public(sid, v):
     return {"id": sid, "num": v["num"],
             "color": v["color"], "colorname": v["colorname"],
-            "device": v["device"], "text": v["text"],
-            "submitted": v["submitted"]}
+            "device": v["device"], "text": v["text"]}
 
+@app.route("/")    
+def index():
+    return render_template("phone.html")
+
+
+@app.route("/panel")
+def panel():
+    return render_template("panel.html")

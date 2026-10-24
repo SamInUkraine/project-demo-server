@@ -23,7 +23,7 @@ COLORS = [("red", "червоний"), ("blue", "синій"), ("green", "зел
 
 def public(sid, v):
     return {"id": sid, "num": v["num"],
-            "color": v["color"], "colorname": v["colorname"],
+            "color": v["color"],
             "device": v["device"], "text": v["text"],
             "submitted": v["submitted"]}
 

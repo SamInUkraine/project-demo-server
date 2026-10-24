@@ -87,18 +87,16 @@
   document.getElementById("txt").addEventListener("input", function(e){
     socket.emit("typing", { text: e.target.value });
   });
-  
-  // Шлемо позицію пальця у відсотках від поля.
-  var pad = document.getElementById("pad");
+
+    // Шлемо позицію пальця у відсотках від усієї сторінки.
   function sendTouch(e, down){
     var t = (e.touches && e.touches[0]) ? e.touches[0] : e;
-    var r = pad.getBoundingClientRect();
-    var x = ((t.clientX - r.left) / r.width) * 100;
-    var y = ((t.clientY - r.top) / r.height) * 100;
+    var x = (t.clientX / window.innerWidth) * 100;
+    var y = (t.clientY / window.innerHeight) * 100;
     socket.emit("touch", { x: x, y: y, down: down });
   }
-  pad.addEventListener("touchstart", function(e){ e.preventDefault(); sendTouch(e, true); }, {passive:false});
-  pad.addEventListener("touchmove",  function(e){ e.preventDefault(); sendTouch(e, true); }, {passive:false});
+  window.addEventListener("touchstart", function(e){ sendTouch(e, true); }, {passive:true});
+  window.addEventListener("touchmove",  function(e){ sendTouch(e, true); }, {passive:true});
 </script>
 </body>
 </html>

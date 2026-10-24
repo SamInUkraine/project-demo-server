@@ -16,6 +16,9 @@
              border: 1px solid #000; box-sizing: border-box; }
   button { margin-top: 8px; padding: 8px 14px; font-size: 16px; }
   #status { margin-top: 16px; color: #555; font-size: 13px; }
+  .trail { position: fixed; width: 28px; height: 28px; margin: -14px 0 0 -14px;
+           border-radius: 50%; background: rgba(0, 0, 0, 0.3);
+           pointer-events: none; opacity: 1; transition: opacity 0.8s linear; }
 </style>
 </head>
 <body>
@@ -86,11 +89,23 @@
   });
 
     // Шлемо позицію пальця у відсотках від усієї сторінки.
-  function sendTouch(e, down){
+    function sendTouch(e, down){
     var t = (e.touches && e.touches[0]) ? e.touches[0] : e;
     var x = (t.clientX / window.innerWidth) * 100;
     var y = (t.clientY / window.innerHeight) * 100;
     socket.emit("touch", { x: x, y: y, down: down });
+    showTrail(t);                       // ← добавили: рисуем след на своём экране
+  }
+
+  // Полупрозрачний слід там, де водять пальцем.
+  function showTrail(t){
+    var dot = document.createElement("div");
+    dot.className = "trail";
+    dot.style.left = t.clientX + "px";
+    dot.style.top  = t.clientY + "px";
+    document.body.appendChild(dot);
+    requestAnimationFrame(function(){ dot.style.opacity = "0"; });
+    setTimeout(function(){ dot.remove(); }, 800);
   }
   window.addEventListener("touchstart", function(e){ sendTouch(e, true); }, {passive:true});
   window.addEventListener("touchmove",  function(e){ sendTouch(e, true); }, {passive:true});

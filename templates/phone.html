@@ -96,19 +96,34 @@
     socket.emit("touch", { x: x, y: y, down: down });
     showTrail(t);                       // ← добавили: рисуем след на своём экране
   }
-
-  // Полупрозрачний слід там, де водять пальцем.
+  // Полупрозорий слід: домальовуємо точки між попередньою й поточною позицією,
+  // щоб вони зливалися в лінію, а не йшли окремими кружечками.
+  var lastT = null;
   function showTrail(t){
+    if (lastT){
+      var dx = t.clientX - lastT.x, dy = t.clientY - lastT.y;
+      var dist = Math.sqrt(dx*dx + dy*dy);
+      var steps = Math.floor(dist / 6);          // крок 6px — чим менше, тим щільніше
+      for (var i = 1; i < steps; i++){
+        dropDot(lastT.x + dx * i / steps, lastT.y + dy * i / steps);
+      }
+    }
+    dropDot(t.clientX, t.clientY);
+    lastT = { x: t.clientX, y: t.clientY };
+  }
+
+  function dropDot(x, y){
     var dot = document.createElement("div");
     dot.className = "trail";
-    dot.style.left = t.clientX + "px";
-    dot.style.top  = t.clientY + "px";
+    dot.style.left = x + "px";
+    dot.style.top  = y + "px";
     document.body.appendChild(dot);
     requestAnimationFrame(function(){ dot.style.opacity = "0"; });
     setTimeout(function(){ dot.remove(); }, 800);
   }
   window.addEventListener("touchstart", function(e){ sendTouch(e, true); }, {passive:true});
   window.addEventListener("touchmove",  function(e){ sendTouch(e, true); }, {passive:true});
+  window.addEventListener("touchend", function(){ lastT = null; }, {passive:true});
 </script>
 </body>
 </html>

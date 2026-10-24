@@ -1,133 +1,98 @@
-<!DOCTYPE html>
-<html lang="uk">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Панель</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.min.js"></script>
-<style>
-  body { font-family: Arial, sans-serif; color: #000; background: #fff;
-         margin: 16px; }
-  #bar { margin-bottom: 14px; font-size: 18px; }
-  #bar b { font-size: 20px; }
-  #hint { color: #555; font-size: 14px; }
-  #grid { display: grid; gap: 12px;
-          grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); }
-  .card { border: 1px solid #000; padding: 10px; }
-  .card h3 { margin: 0 0 8px; font-size: 18px; }
-  .block { display: none; margin-top: 8px; }
-  .block.show { display: block; }
-  table { border-collapse: collapse; width: 100%; font-size: 14px; }
-  td { border: 1px solid #999; padding: 3px 6px; vertical-align: top; }
-  td.k { width: 38%; color: #333; }
-  .ua { font-size: 12px; word-break: break-all; }
-  .typed { font-family: monospace; font-size: 15px; border: 1px solid #999;
-           padding: 6px; min-height: 22px; white-space: pre-wrap; word-break: break-word; }
-  .pad { border: 1px solid #999; height: 240px; position: relative; overflow: hidden; }
-  .dot { position: absolute; width: 12px; height: 12px; margin: -6px 0 0 -6px;
-         border-radius: 50%; }
-  #empty { color: #555; }
-</style>
-</head>
-<body>
-  <div id="bar">
-    Online: <b id="num">0</b> &nbsp;|&nbsp;
-  </div>
-  <div id="grid"><span id="empty">Очікуємо відвідувачів...</span></div>
+import os
+import time
+from flask import Flask, render_template, request
+from flask_socketio import SocketIO, emit, join_room
 
-<script>
-  var socket = io();
-  var grid = document.getElementById("grid");
-  var empty = document.getElementById("empty");
-  var numEl = document.getElementById("num");
-  var stageEl = document.getElementById("stage");
-  var cards = {};        // id -> елемент картки
-  var stage = 0;         // скільки блоків відкрито (0..4), керується пробілом
 
-  // stage 1 = пристрій, 2 = мова, 3 = текст, 4 = пальці
-  function applyStage(card){
-    var blocks = card.querySelectorAll(".block");
-    for (var i = 0; i < blocks.length; i++){
-      if (i < stage) blocks[i].classList.add("show");
-      else blocks[i].classList.remove("show");
+MAX_TEXT = 300
+MAX_HISTORY = 600
+
+visitors = {}
+counter = {"n": 0}
+
+
+app = Flask(__name__)
+app.config["SECRET_KEY"] = "demo-privacy"
+socketio = SocketIO(app, cors_allowed_origins="*")
+
+COLORS = [("red", "червоний"), ("blue", "синій"), ("green", "зелений"),
+          ("orange", "помаранчевий"), ("purple", "фіолетовий"),
+          ("brown", "коричневий"), ("magenta", "малиновий"),
+          ("teal", "бірюзовий")]
+
+
+def public(sid, v):
+    return {"id": sid, "num": v["num"],
+            "color": v["color"],
+            "device": v["device"], "text": v["text"],
+            "submitted": v["submitted"]}
+
+
+@app.route("/")
+def index():
+    return render_template("phone.html")
+
+@app.route("/panel")
+def panel():
+    return render_template("panel.html")
+
+
+@socketio.on("hello_phone")
+def hello_phone(data):
+    """Телефон приєднується ПІСЛЯ згоди. data містить інфо про пристрій."""
+    if request.sid in visitors:
+        return
+    counter["n"] += 1
+    n = counter["n"]
+    color, colorname = COLORS[(n - 1) % len(COLORS)]
+    visitors[request.sid] = {
+        "num": n, "color": color, "colorname": colorname,
+        "device": data.get("device", {}),
+        "text": "", "history": [], "submitted": None,
     }
-  }
-  function applyAll(){
-    if (stageEl) stageEl.textContent = stage;  
-    for (var id in cards) applyStage(cards[id]);
-  }
+    emit("visitor_join", public(request.sid, visitors[request.sid]), to="panel")
+    emit("you_are", {"num": n})
 
-  document.addEventListener("keydown", function(e){
-    if (e.code === "Space"){ e.preventDefault(); if (stage < 4){ stage++; applyAll(); } }
-    if (e.code === "ArrowLeft"){ e.preventDefault(); if (stage > 0){ stage--; applyAll(); } }
-  });
 
-  function esc(s){
-    return String(s).replace(/[&<>"']/g, function(m){
-      return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]; });
-  }
+@socketio.on("typing")
+def on_typing(data):
+    v = visitors.get(request.sid)
+    if not v:
+        return
+    text = str(data.get("text", ""))[:MAX_TEXT]
+    v["text"] = text
+    v["history"].append({"t": time.time(), "text": text})
+    if len(v["history"]) > MAX_HISTORY:
+        v["history"].pop(0)
+    emit("typing", {"id": request.sid, "text": text}, to="panel")
 
-  function render(v){
-    if (cards[v.id]) return;
-    var d = v.device || {};
-    var card = document.createElement("div");
-    card.className = "card";
-    card.innerHTML =
-      '<h3>Відвідувач №' + v.num + '</h3>' +
-      // блок 1 — пристрій
-      '<div class="block"><table>' +
-        '<tr><td class="k">Ядер процесора</td><td>' + esc(d.cores) + '</td></tr>' +
-        '<tr><td class="k">Памʼять</td><td>' + esc(d.memory) + '</td></tr>' +
-        '<tr><td class="k">Відеокарта</td><td>' + esc(d.gpu) + '</td></tr>' +
-        '<tr><td class="k">Екран</td><td>' + esc(d.screen) + '</td></tr>' +
-        '<tr><td class="k">Платформа</td><td>' + esc(d.platform) + '</td></tr>' +
-        '<tr><td class="k">Сенсорний екран</td><td>' + esc(d.touch) + '</td></tr>' +
-        '<tr><td class="k">Браузер</td><td class="ua">' + esc(d.browser) + '</td></tr>' +
-      '</table></div>' +
-      // блок 2 — мова / час
-      '<div class="block"><table>' +
-        '<tr><td class="k">Мова</td><td>' + esc(d.language) + '</td></tr>' +
-        '<tr><td class="k">Усі мови</td><td>' + esc(d.languages) + '</td></tr>' +
-        '<tr><td class="k">Часовий пояс</td><td>' + esc(d.timezone) + '</td></tr>' +
-      '</table></div>' +
-      // блок 3 — що друкує
-      '<div class="block">Друкує: <div class="typed">' + esc(v.text || "") + '</div></div>' +
-      // блок 4 — пальці
-      '<div class="block">Палець на екрані:<div class="pad"></div></div>';
-    grid.appendChild(card);
-    cards[v.id] = card;
-    applyStage(card);
-    empty.style.display = "none";
-    numEl.textContent = Object.keys(cards).length;
-  }
 
-  socket.on("connect", function(){ socket.emit("hello_panel"); });
-  socket.on("state", function(list){ list.forEach(render); });
-  socket.on("visitor_join", render);
-  socket.on("visitor_leave", function(d){
-    var c = cards[d.id]; if (!c) return;
-    c.remove(); delete cards[d.id];
-    numEl.textContent = Object.keys(cards).length;
-    if (!Object.keys(cards).length) empty.style.display = "inline";
-  });
+@socketio.on("touch")
+def on_touch(data):
+    v = visitors.get(request.sid)
+    if not v:
+        return
+    emit("touch", {"id": request.sid, "color": v["color"],
+                   "x": data.get("x", 0), "y": data.get("y", 0),
+                   "down": data.get("down", False)}, to="panel")
 
-  socket.on("typing", function(d){
-    var c = cards[d.id]; if (!c) return;
-    c.querySelector(".typed").textContent = d.text;
-  });
 
-  socket.on("touch", function(d){
-    var c = cards[d.id]; if (!c) return;
-    var pad = c.querySelector(".pad");
-    var dot = document.createElement("div");
-    dot.className = "dot";
-    dot.style.left = d.x + "%";
-    dot.style.top = d.y + "%";
-    dot.style.background = d.color;
-    dot.style.opacity = d.down ? "1" : "0.4";
-    pad.appendChild(dot);
-    setTimeout(function(){ dot.remove(); }, 1500);
-  });
-</script>
-</body>
-</html>
+
+@socketio.on("hello_panel")
+def hello_panel():
+    join_room("panel")
+    emit("state", [public(s, v) for s, v in visitors.items()])
+
+
+@socketio.on("disconnect")
+def on_disconnect():
+    if visitors.pop(request.sid, None):
+        emit("visitor_leave", {"id": request.sid}, to="panel")
+
+
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 5000)) # Якщо щось піде не так з хостингом, панель запуститься локально
+    print("Панель для проектора:  http://localhost:%d/panel" % port)
+    print("Сторінка для телефонів: http://<твій-IP>:%d/" % port)
+    socketio.run(app, host="0.0.0.0", port=port, debug=False,
+                 allow_unsafe_werkzeug=True)

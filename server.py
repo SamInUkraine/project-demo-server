@@ -24,9 +24,15 @@ COLORS = [("red", "червоний"), ("blue", "синій"), ("green", "зел
 def public(sid, v):
     return {"id": sid, "num": v["num"],
             "color": v["color"],
-            "device": v["device"], "text": v["text"],
-            "submitted": v["submitted"]}
+            "device": v["device"], "ip": v.get("ip", ""),   # ← додали
+            "text": v["text"], "submitted": v["submitted"]}
 
+def client_ip():
+    # На Render справжній IP — у заголовку X-Forwarded-For (перший у списку).
+    fwd = request.headers.get("X-Forwarded-For", "")
+    if fwd:
+        return fwd.split(",")[0].strip()
+    return request.remote_addr or "невідомо"
 
 @app.route("/")
 def index():
@@ -52,6 +58,12 @@ def hello_phone(data):
     }
     emit("visitor_join", public(request.sid, visitors[request.sid]), to="panel")
     emit("you_are", {"num": n})
+    visitors[request.sid] = {
+        "num": n, "color": color, "colorname": colorname,
+        "device": data.get("device", {}),
+        "ip": client_ip(),                      # ← додали
+        "text": "", "history": [], "submitted": None,
+    }
 
 
 @socketio.on("typing")

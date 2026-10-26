@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Панель</title>
+<title>Panel</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.min.js"></script>
 <style>
   body { font-family: Arial, sans-serif; color: #000; background: #fff;
@@ -86,6 +86,7 @@
       '</table></div>' +
       // блок 2 — мова / час
       '<div class="block"><table>' +
+        '<tr><td class="k">IP-адреса</td><td>' + esc(v.ip || "") + '</td></tr>' +
         '<tr><td class="k">Мова</td><td>' + esc(d.language) + '</td></tr>' +
         '<tr><td class="k">Усі мови</td><td>' + esc(d.languages) + '</td></tr>' +
         '<tr><td class="k">Часовий пояс</td><td>' + esc(d.timezone) + '</td></tr>' +

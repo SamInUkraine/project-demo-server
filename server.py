@@ -90,11 +90,22 @@ def on_touch(data):
 
 
 
-@socketio.on("hello_panel")
-def hello_panel():
-    join_room("panel")
-    emit("state", [public(s, v) for s, v in visitors.items()])
-
+@socketio.on("hello_phone")
+def hello_phone(data):
+    """Телефон приєднується ПІСЛЯ згоди. data містить інфо про пристрій."""
+    if request.sid in visitors:
+        return
+    counter["n"] += 1
+    n = counter["n"]
+    color, colorname = COLORS[(n - 1) % len(COLORS)]
+    visitors[request.sid] = {
+        "num": n, "color": color, "colorname": colorname,
+        "device": data.get("device", {}),
+        "ip": client_ip(),                      # ← тепер тут, ДО emit
+        "text": "", "history": [], "submitted": None,
+    }
+    emit("visitor_join", public(request.sid, visitors[request.sid]), to="panel")
+    emit("you_are", {"num": n})
 
 @socketio.on("disconnect")
 def on_disconnect():

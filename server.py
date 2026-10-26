@@ -94,3 +94,11 @@ def hello_panel():
 def on_disconnect():
     if visitors.pop(request.sid, None):
         emit("visitor_leave", {"id": request.sid}, to="panel")
+
+
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 5000)) # Якщо щось піде не так з хостингом, панель запуститься локально
+    print("Панель для проектора:  http://localhost:%d/panel" % port)
+    print("Сторінка для телефонів: http://<твій-IP>:%d/" % port)
+    socketio.run(app, host="0.0.0.0", port=port, debug=False,
+                 allow_unsafe_werkzeug=True)

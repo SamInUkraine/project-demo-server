@@ -54,16 +54,11 @@ def hello_phone(data):
     visitors[request.sid] = {
         "num": n, "color": color, "colorname": colorname,
         "device": data.get("device", {}),
+        "ip": client_ip(),
         "text": "", "history": [], "submitted": None,
     }
     emit("visitor_join", public(request.sid, visitors[request.sid]), to="panel")
     emit("you_are", {"num": n})
-    visitors[request.sid] = {
-        "num": n, "color": color, "colorname": colorname,
-        "device": data.get("device", {}),
-        "ip": client_ip(),                      # ← додали
-        "text": "", "history": [], "submitted": None,
-    }
 
 
 @socketio.on("typing")
@@ -89,33 +84,13 @@ def on_touch(data):
                    "down": data.get("down", False)}, to="panel")
 
 
+@socketio.on("hello_panel")
+def hello_panel():
+    join_room("panel")
+    emit("state", [public(s, v) for s, v in visitors.items()])
 
-@socketio.on("hello_phone")
-def hello_phone(data):
-    """Телефон приєднується ПІСЛЯ згоди. data містить інфо про пристрій."""
-    if request.sid in visitors:
-        return
-    counter["n"] += 1
-    n = counter["n"]
-    color, colorname = COLORS[(n - 1) % len(COLORS)]
-    visitors[request.sid] = {
-        "num": n, "color": color, "colorname": colorname,
-        "device": data.get("device", {}),
-        "ip": client_ip(),                      # ← тепер тут, ДО emit
-        "text": "", "history": [], "submitted": None,
-    }
-    emit("visitor_join", public(request.sid, visitors[request.sid]), to="panel")
-    emit("you_are", {"num": n})
 
 @socketio.on("disconnect")
 def on_disconnect():
     if visitors.pop(request.sid, None):
         emit("visitor_leave", {"id": request.sid}, to="panel")
-
-
-if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000)) # Якщо щось піде не так з хостингом, панель запуститься локально
-    print("Панель для проектора:  http://localhost:%d/panel" % port)
-    print("Сторінка для телефонів: http://<твій-IP>:%d/" % port)
-    socketio.run(app, host="0.0.0.0", port=port, debug=False,
-                 allow_unsafe_werkzeug=True)

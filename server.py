@@ -1,4 +1,6 @@
 import os
+import json
+import urllib.request
 import time
 from flask import Flask, render_template, request
 from flask_socketio import SocketIO, emit, join_room
@@ -24,15 +26,38 @@ COLORS = [("red", "червоний"), ("blue", "синій"), ("green", "зел
 def public(sid, v):
     return {"id": sid, "num": v["num"],
             "color": v["color"],
-            "device": v["device"], "ip": v.get("ip", ""),   # ← додали
+            "device": v["device"], "ip": v.get("ip", ""),
+            "geo": v.get("geo", {}),                        # ← додали
             "text": v["text"], "submitted": v["submitted"]}
 
+            
 def client_ip():
     # На Render справжній IP — у заголовку X-Forwarded-For (перший у списку).
     fwd = request.headers.get("X-Forwarded-For", "")
     if fwd:
         return fwd.split(",")[0].strip()
     return request.remote_addr or "невідомо"
+
+
+geo_cache = {}   # ip -> {city, country, isp}, щоб не питати двічі про той самий IP
+
+def ip_geo(ip):
+    if ip in geo_cache:
+        return geo_cache[ip]
+    result = {"city": "", "country": "", "isp": ""}
+    try:
+        url = "http://ip-api.com/json/" + ip + "?fields=status,city,country,isp"
+        with urllib.request.urlopen(url, timeout=2) as r:
+            d = json.load(r)
+        if d.get("status") == "success":
+            result = {"city": d.get("city", ""),
+                      "country": d.get("country", ""),
+                      "isp": d.get("isp", "")}
+    except Exception:
+        pass
+    geo_cache[ip] = result
+    return result
+
 
 @app.route("/")
 def index():
@@ -51,10 +76,13 @@ def hello_phone(data):
     counter["n"] += 1
     n = counter["n"]
     color, colorname = COLORS[(n - 1) % len(COLORS)]
+    ip = client_ip()
+    geo = ip_geo(ip)
     visitors[request.sid] = {
         "num": n, "color": color, "colorname": colorname,
         "device": data.get("device", {}),
-        "ip": client_ip(),
+        "ip": ip,
+        "geo": geo,                             # ← додали
         "text": "", "history": [], "submitted": None,
     }
     emit("visitor_join", public(request.sid, visitors[request.sid]), to="panel")
